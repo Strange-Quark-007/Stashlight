@@ -1,6 +1,7 @@
 package dev.strangequark.stashlight.model;
 
-import net.minecraft.item.ItemStack;
+
+import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 

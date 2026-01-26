@@ -2,8 +2,8 @@ package dev.strangequark.stashlight.logic.filter;
 
 import dev.strangequark.stashlight.config.Config;
 import dev.strangequark.stashlight.model.IndexedItem;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 public final class RadiusFilter implements FilterStrategy {
 
@@ -26,12 +26,12 @@ public final class RadiusFilter implements FilterStrategy {
             return true;
         }
 
-        var player = MinecraftClient.getInstance().player;
+        var player = Minecraft.getInstance().player;
         if (player == null || item.pos() == null) return true;
 
         // Convert BlockPos to Chunk coordinates via bit-shift (>> 4)
-        int pX = player.getBlockPos().getX() >> 4;
-        int pZ = player.getBlockPos().getZ() >> 4;
+        int pX = player.getBlockPosBelowThatAffectsMyMovement().getX() >> 4;
+        int pZ = player.getBlockPosBelowThatAffectsMyMovement().getZ() >> 4;
         int iX = item.pos().getX() >> 4;
         int iZ = item.pos().getZ() >> 4;
 
@@ -41,14 +41,14 @@ public final class RadiusFilter implements FilterStrategy {
         return dist <= maxRadius;
     }
 
-    public static Text getLabelForIndex(int index) {
+    public static Component getLabelForIndex(int index) {
         int safeIndex = (index < 0 || index >= RADIUS_VALUES.length) ? DEFAULT_INDEX : index;
         int val = RADIUS_VALUES[safeIndex];
 
-        Text valueText = (val == -1)
-                ? Text.translatable("gui.stashlight.label.rangeAll")
-                : Text.translatable("gui.stashlight.label.rangeChunks", val);
+        Component valueText = (val == -1)
+                ? Component.translatable("gui.stashlight.label.rangeAll")
+                : Component.translatable("gui.stashlight.label.rangeChunks", val);
 
-        return Text.translatable("gui.stashlight.label.searchRange", valueText);
+        return Component.translatable("gui.stashlight.label.searchRange", valueText);
     }
 }

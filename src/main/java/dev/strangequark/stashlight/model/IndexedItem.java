@@ -1,7 +1,7 @@
 package dev.strangequark.stashlight.model;
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * A 'ready-to-search' entry. We pre-calculate the sums and

@@ -4,16 +4,16 @@ package dev.strangequark.stashlight.gui;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.core.OwoUIDrawContext;
 import io.wispforest.owo.ui.core.Sizing;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 public class QuantityLabel extends LabelComponent {
     private float scale = 1f;
 
-    public QuantityLabel(Text text) {
+    public QuantityLabel(Component text) {
         super(text);
     }
 
-    public static QuantityLabel of(Text text) {
+    public static QuantityLabel of(Component text) {
         return new QuantityLabel(text);
     }
 
@@ -28,7 +28,7 @@ public class QuantityLabel extends LabelComponent {
     // 5. Override draw() to apply scaling transformation
     @Override
     public void draw(OwoUIDrawContext context, int mouseX, int mouseY, float partialTicks, float delta) {
-        var matrices = context.getMatrices();
+        var matrices = context.getMatrixStack();
 
         matrices.pushMatrix();
 

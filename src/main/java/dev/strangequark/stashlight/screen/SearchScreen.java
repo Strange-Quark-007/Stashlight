@@ -14,11 +14,11 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.GridLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.core.*;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
 
     private void setupFilters() {
         List<FilterStrategy> strategies = new ArrayList<>();
-        var world = MinecraftClient.getInstance().world;
+        var world = Minecraft.getInstance().level;
         String currentDim;
 
         if (world != null) {
@@ -70,9 +70,9 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
     protected void init() {
         super.init();
         if (this.rootComponent.focusHandler() != null && this.searchField.focusHandler() != null) {
-            this.rootComponent.focusHandler().focus(this.searchField, Component.FocusSource.MOUSE_CLICK);
-            this.searchField.setSelectionStart(0);
-            this.searchField.setSelectionEnd(this.searchField.getText().length());
+            this.rootComponent.focusHandler().focus(this.searchField, io.wispforest.owo.ui.core.Component.FocusSource.MOUSE_CLICK);
+            this.searchField.setHighlightPos(0);
+            this.searchField.moveCursorToEnd(false);
         }
     }
 
@@ -91,7 +91,7 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
                 .padding(Insets.of(PADDING));
 
         // --- 2. HEADER & SEARCH BAR ---
-        LabelComponent title = Components.label(Text.translatable("screen.stashlight.label.searchContainers")).shadow(true);
+        LabelComponent title = Components.label(Component.translatable("screen.stashlight.label.searchContainers")).shadow(true);
 
         FlowLayout searchBar = (FlowLayout) Containers
                 .horizontalFlow(Sizing.fill(), Sizing.fixed(COMPONENT_HEIGHT))
@@ -99,12 +99,12 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
                 .alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
 
         ButtonComponent sortBtn = (ButtonComponent) Components
-                .button(Text.of(sortManager.getCurrent().getLabel()), b -> {
+                .button(Component.literal(sortManager.getCurrent().getLabel()), b -> {
                     sortManager.cycle();
-                    b.setMessage(Text.of(sortManager.getCurrent().getLabel()));
+                    b.setMessage(Component.literal(sortManager.getCurrent().getLabel()));
                     b.tooltip(sortManager.getCurrent().getTooltip());
                     config.setSortKey(sortManager.getCurrent().key());
-                    refreshGrid(searchField.getText());
+                    refreshGrid(searchField.getValue());
                 })
                 .tooltip(sortManager.getCurrent().getTooltip())
                 .sizing(Sizing.fixed(COMPONENT_HEIGHT), Sizing.fixed(COMPONENT_HEIGHT));
@@ -117,11 +117,11 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
         });
 
         ButtonComponent dimFilterBtn = (ButtonComponent) Components.button(
-                        Text.translatable("gui.stashlight.label.dimension").append(": ").append(filterManager.getCurrentLabel()),
+                        Component.translatable("gui.stashlight.label.dimension").append(": ").append(filterManager.getCurrentLabel()),
                         b -> {
                             filterManager.cycle();
-                            b.setMessage(Text.translatable("gui.stashlight.label.dimension").append(": ").append(filterManager.getCurrentLabel()));
-                            refreshGrid(searchField.getText());
+                            b.setMessage(Component.translatable("gui.stashlight.label.dimension").append(": ").append(filterManager.getCurrentLabel()));
+                            refreshGrid(searchField.getValue());
                         })
                 .sizing(Sizing.fixed(FILTER_WIDTH), Sizing.fixed(COMPONENT_HEIGHT));
 
@@ -158,16 +158,16 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
                 .verticalAlignment(VerticalAlignment.CENTER);
 
         CheckboxComponent lookAtCheckbox = (CheckboxComponent) Components
-                .checkbox(Text.translatable("screen.stashlight.lookAtTarget"))
+                .checkbox(Component.translatable("screen.stashlight.lookAtTarget"))
                 .checked(config.lookAtTarget()).onChanged(config::setLookAtTarget)
                 .margins(Insets.top(BORDER));
 
         CheckboxComponent showSmallCheckbox = (CheckboxComponent) Components
-                .checkbox(Text.translatable("screen.stashlight.showSmallContainers"))
+                .checkbox(Component.translatable("screen.stashlight.showSmallContainers"))
                 .checked(config.showSmallContainers())
                 .onChanged(v -> {
                     config.setShowSmallContainers(v);
-                    refreshGrid(searchField.getText());
+                    refreshGrid(searchField.getValue());
                 })
                 .margins(Insets.top(BORDER));
 
@@ -185,7 +185,7 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
             }
             config.setSearchRadiusIndex(index);
             distanceSlider.message(s -> RadiusFilter.getLabelForIndex(config.searchRadiusIndex()));
-            refreshGrid(searchField.getText());
+            refreshGrid(searchField.getValue());
         });
 
         footer.child(distanceSlider).child(lookAtCheckbox).child(showSmallCheckbox);
@@ -232,21 +232,21 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
         String q = query.toLowerCase();
 
         // 1. Check main item name
-        if (stack.getName().getString().toLowerCase().contains(q)) return true;
+        if (stack.getHoverName().getString().toLowerCase().contains(q)) return true;
 
         // 2. Check Shulker-like containers
-        var container = stack.get(DataComponentTypes.CONTAINER);
+        var container = stack.get(DataComponents.CONTAINER);
         if (container != null) {
-            for (ItemStack inner : container.iterateNonEmpty()) {
-                if (inner.getName().getString().toLowerCase().contains(q)) return true;
+            for (ItemStack inner : container.nonEmptyItems()) {
+                if (inner.getHoverName().getString().toLowerCase().contains(q)) return true;
             }
         }
 
         // 3. Check Bundles
-        var bundle = stack.get(DataComponentTypes.BUNDLE_CONTENTS);
+        var bundle = stack.get(DataComponents.BUNDLE_CONTENTS);
         if (bundle != null) {
-            for (ItemStack inner : bundle.iterate()) {
-                if (inner.getName().getString().toLowerCase().contains(q)) return true;
+            for (ItemStack inner : bundle.items()) {
+                if (inner.getHoverName().getString().toLowerCase().contains(q)) return true;
             }
         }
 
@@ -254,19 +254,19 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.applyBlur();
+    public void renderBackground(GuiGraphics context, int mouseX, int mouseY, float delta) {
+        context.blurBeforeThisStratum();
         super.renderBackground(context, mouseX, mouseY, delta);
     }
 
     @Override
-    public void resize(MinecraftClient client, int width, int height) {
+    public void resize(@NotNull Minecraft client, int width, int height) {
         super.resize(client, width, height);
-        this.refreshGrid(this.searchField.getText());
+        this.refreshGrid(this.searchField.getValue());
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 }

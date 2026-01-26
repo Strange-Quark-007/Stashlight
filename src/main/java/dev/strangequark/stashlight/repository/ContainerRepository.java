@@ -5,9 +5,9 @@ import dev.strangequark.stashlight.model.IndexedItem;
 import dev.strangequark.stashlight.model.StackKey;
 import dev.strangequark.stashlight.serializer.Serializer;
 import dev.strangequark.stashlight.util.Util;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -36,7 +36,7 @@ public class ContainerRepository {
         rebuildIndex();
     }
 
-    public void runCleanup(ClientWorld world) {
+    public void runCleanup(ClientLevel world) {
         String dimension = Util.getDimensionName(world);
         Map<BlockPos, ContainerSnapshot> dataMap = CONTAINER_ENTRIES_MAP.get(dimension);
 
@@ -53,7 +53,7 @@ public class ContainerRepository {
             List<BlockPos> toRemove = new ArrayList<>();
             for (BlockPos pos : toCheck) {
                 try {
-                    if (world.getChunkManager().isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
+                    if (world.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
                         var state = world.getBlockState(pos);
                         if (!Util.isValidSearchableContainer(state)) {
                             toRemove.add(pos);
@@ -133,7 +133,7 @@ public class ContainerRepository {
             if (stack == null || stack.isEmpty()) continue;
             StackKey key = new StackKey(stack);
             if (localMap.containsKey(key)) {
-                localMap.get(key).increment(stack.getCount());
+                localMap.get(key).grow(stack.getCount());
             } else {
                 localMap.put(key, stack.copy());
             }

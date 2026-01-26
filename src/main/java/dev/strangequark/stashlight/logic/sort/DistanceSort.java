@@ -2,9 +2,9 @@ package dev.strangequark.stashlight.logic.sort;
 
 import dev.strangequark.stashlight.gui.UIStyle;
 import dev.strangequark.stashlight.model.IndexedItem;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 
 import java.util.List;
 
@@ -20,20 +20,20 @@ public class DistanceSort implements SortStrategy {
     }
 
     @Override
-    public Text getTooltip() {
-        return Text.translatable("gui.stashlight.sort.distance.tooltip");
+    public Component getTooltip() {
+        return Component.translatable("gui.stashlight.sort.distance.tooltip");
     }
 
     @Override
     public void sort(List<IndexedItem> items) {
-        var player = MinecraftClient.getInstance().player;
+        var player = Minecraft.getInstance().player;
         if (player == null) return;
 
-        BlockPos playerPos = player.getBlockPos();
+        BlockPos playerPos = player.getOnPos();
 
         items.sort((a, b) -> {
-            double distA = a.pos().getSquaredDistance(playerPos);
-            double distB = b.pos().getSquaredDistance(playerPos);
+            double distA = a.pos().distSqr(playerPos);
+            double distB = b.pos().distSqr(playerPos);
             return Double.compare(distA, distB);
         });
     }

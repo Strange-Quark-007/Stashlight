@@ -7,16 +7,16 @@ import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.component.ItemComponent;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.core.*;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Click;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.tooltip.TooltipType;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +43,7 @@ public class ItemSlot extends StackLayout {
         int count = stack.getCount();
         var scale = count > 999 ? 0.75f : 0.85f;
 
-        QuantityLabel countLabel = QuantityLabel.of(Text.literal(String.valueOf(count)));
+        QuantityLabel countLabel = QuantityLabel.of(Component.literal(String.valueOf(count)));
         countLabel.positioning(Positioning.relative(90, 90));
 
         this.surface(BASE_SURFACE).alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
@@ -69,56 +69,56 @@ public class ItemSlot extends StackLayout {
 
     @Override
     public void drawTooltip(OwoUIDrawContext context, int mouseX, int mouseY, float partialTicks, float delta) {
-        var client = MinecraftClient.getInstance();
-        if (client.player == null || client.world == null) {
+        var client = Minecraft.getInstance();
+        if (client.player == null || client.level == null) {
             return;
         }
 
-        double dist = Math.sqrt(client.player.getBlockPos().getSquaredDistance(indexedItem.pos()));
+        double dist = Math.sqrt(client.player.blockPosition().distSqr(indexedItem.pos()));
         String formattedDist = String.format("%.1f", dist);
         String posStr = String.format("%d, %d, %d", indexedItem.pos().getX(), indexedItem.pos().getY(), indexedItem.pos().getZ());
 
         // 1. Get Vanilla Lines (Handles Item Name & Data Components)
-        List<Text> lines = new ArrayList<>(this.indexedItem.stack().getTooltip(
-                Item.TooltipContext.create(client.world.getRegistryManager()),
+        List<Component> lines = new ArrayList<>(this.indexedItem.stack().getTooltipLines(
+                Item.TooltipContext.of(client.level),
                 client.player,
-                client.options.advancedItemTooltips ? TooltipType.Default.ADVANCED : TooltipType.Default.BASIC
+                client.options.advancedItemTooltips ? TooltipFlag.ADVANCED : TooltipFlag.NORMAL
         ));
 
-        lines.add(Text.empty()); // Spacer
+        lines.add(Component.empty()); // Spacer
 
-// Container
-        lines.add(Text.translatable("gui.stashlight.label.container").formatted(Formatting.GRAY).append(": ")
-                .append(Text.translatable(indexedItem.containerName()).formatted(Formatting.WHITE)));
+        // Container
+        lines.add(Component.translatable("gui.stashlight.label.container").withStyle(ChatFormatting.GRAY).append(": ")
+                .append(Component.literal(indexedItem.containerName()).withStyle(ChatFormatting.WHITE)));
 
-// Location
-        lines.add(Text.translatable("gui.stashlight.label.location").formatted(Formatting.GRAY)
-                .append(Text.literal(": ").formatted(Formatting.GRAY))
-                .append(Text.literal(posStr).formatted(Formatting.AQUA))
-                .append(Text.translatable("gui.stashlight.label.blocksAway", formattedDist).formatted(Formatting.GRAY)));
+        // Location
+        lines.add(Component.translatable("gui.stashlight.label.location").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(posStr).withStyle(ChatFormatting.AQUA))
+                .append(Component.translatable("gui.stashlight.label.blocksAway", formattedDist).withStyle(ChatFormatting.GRAY)));
 
-// Dimension
-        lines.add(Text.translatable("gui.stashlight.label.dimension").formatted(Formatting.GRAY).append(": ")
-                .append(Text.literal(indexedItem.dimension()).formatted(Formatting.GREEN)));
+        // Dimension
+        lines.add(Component.translatable("gui.stashlight.label.dimension").withStyle(ChatFormatting.GRAY).append(": ")
+                .append(Component.literal(indexedItem.dimension()).withStyle(ChatFormatting.GREEN)));
 
         // Call the vanilla internal method
-        context.drawTooltip(
-                client.textRenderer,
+        context.setTooltipForNextFrame(
+                client.font,
                 lines,
-                this.indexedItem.stack().getTooltipData(),
+                this.indexedItem.stack().getTooltipImage(),
                 mouseX,
                 mouseY,
-                this.indexedItem.stack().get(DataComponentTypes.TOOLTIP_STYLE)
+                this.indexedItem.stack().get(DataComponents.TOOLTIP_STYLE)
         );
     }
 
     @Override
-    public boolean onMouseDown(Click click, boolean doubled) {
+    public boolean onMouseDown(MouseButtonEvent click, boolean doubled) {
         if (click.button() != 0) {
             return super.onMouseDown(click, doubled);
         }
 
-        var client = MinecraftClient.getInstance();
+        var client = Minecraft.getInstance();
         var player = client.player;
         if (player == null) {
             return true;
@@ -135,7 +135,7 @@ public class ItemSlot extends StackLayout {
         return true;
     }
 
-    private void lookAt(PlayerEntity player, BlockPos target) {
+    private void lookAt(Player player, BlockPos target) {
         double d = target.getX() + 0.5 - player.getX();
         double e = target.getY() + 0.5 - player.getEyeY();
         double f = target.getZ() + 0.5 - player.getZ();
@@ -144,7 +144,7 @@ public class ItemSlot extends StackLayout {
         float yaw = (float) (Math.atan2(f, d) * 180.0 / Math.PI) - 90.0f;
         float pitch = (float) (-(Math.atan2(e, g) * 180.0 / Math.PI));
 
-        player.setYaw(yaw);
-        player.setPitch(pitch);
+        player.setYRot(yaw);
+        player.setXRot(pitch);
     }
 }

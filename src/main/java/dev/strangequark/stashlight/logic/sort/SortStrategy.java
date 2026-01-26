@@ -1,7 +1,7 @@
 package dev.strangequark.stashlight.logic.sort;
 
 import dev.strangequark.stashlight.model.IndexedItem;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 import java.util.List;
 
@@ -10,7 +10,7 @@ public interface SortStrategy {
 
     String getLabel();
 
-    Text getTooltip();
+    Component getTooltip();
 
     void sort(List<IndexedItem> items);
 }

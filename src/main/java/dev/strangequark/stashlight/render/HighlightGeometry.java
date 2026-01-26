@@ -1,10 +1,10 @@
 package dev.strangequark.stashlight.render;
 
 
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 public final class HighlightGeometry {
@@ -14,8 +14,8 @@ public final class HighlightGeometry {
     private static final float R = 1f, G = 1f, B = 1f, A = 1f;
 
 
-    static void drawWireframeBox(MatrixStack matrices, VertexConsumer vc, Vec3d cam, BlockPos pos) {
-        double dist = pos.getSquaredDistance(cam.x, cam.y, cam.z);
+    static void drawWireframeBox(PoseStack matrices, VertexConsumer vc, Vec3 cam, BlockPos pos) {
+        double dist = pos.distToCenterSqr(cam.x, cam.y, cam.z);
         float t = (float) Math.min(THICKNESS + Math.sqrt(dist) * 0.002, MAX_THICKNESS);
 
         float min = -t;
@@ -40,10 +40,10 @@ public final class HighlightGeometry {
         drawBox(matrices, vc, max - t, max - t, min + t, max, max, max - t);
     }
 
-    private static void drawBox(MatrixStack matrices, VertexConsumer vc,
+    private static void drawBox(PoseStack matrices, VertexConsumer vc,
                                 float x1, float y1, float z1,
                                 float x2, float y2, float z2) {
-        Matrix4f mat = matrices.peek().getPositionMatrix();
+        Matrix4f mat = matrices.last().pose();
 
         // Top
         vertex(vc, mat, x1, y2, z1);
@@ -83,6 +83,6 @@ public final class HighlightGeometry {
     }
 
     private static void vertex(VertexConsumer vc, Matrix4f mat, float x, float y, float z) {
-        vc.vertex(mat, x, y, z).color(R, G, B, A).normal(0f, 1f, 0f);
+        vc.addVertex(mat, x, y, z).setColor(R, G, B, A).setNormal(0f, 1f, 0f);
     }
 }

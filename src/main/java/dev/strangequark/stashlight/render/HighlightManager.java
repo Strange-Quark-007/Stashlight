@@ -3,10 +3,10 @@ package dev.strangequark.stashlight.render;
 import dev.strangequark.stashlight.model.HighlightPos;
 import dev.strangequark.stashlight.model.IndexedItem;
 import dev.strangequark.stashlight.util.Util;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -19,10 +19,10 @@ public final class HighlightManager {
     }
 
     public static boolean tryHighlight(IndexedItem item) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.world == null) return false;
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.level == null) return false;
 
-        String currentDim = Util.getDimensionName(client.world);
+        String currentDim = Util.getDimensionName(client.level);
         if (!currentDim.equals(item.dimension())) {
             notifyWrongDimension(client.player);
             return false;
@@ -48,7 +48,7 @@ public final class HighlightManager {
         return active;
     }
 
-    private static void notifyWrongDimension(@NotNull ClientPlayerEntity player) {
-        player.sendMessage(Text.literal("Container is in a different dimension.").formatted(Formatting.RED), false);
+    private static void notifyWrongDimension(@NotNull Player player) {
+        player.displayClientMessage(Component.literal("Container is in a different dimension.").withStyle(ChatFormatting.RED), false);
     }
 }

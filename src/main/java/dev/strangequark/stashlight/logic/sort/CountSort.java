@@ -2,7 +2,7 @@ package dev.strangequark.stashlight.logic.sort;
 
 import dev.strangequark.stashlight.gui.UIStyle;
 import dev.strangequark.stashlight.model.IndexedItem;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 import java.util.List;
 
@@ -18,8 +18,8 @@ public class CountSort implements SortStrategy {
     }
 
     @Override
-    public Text getTooltip() {
-        return Text.translatable("gui.stashlight.sort.count.tooltip");
+    public Component getTooltip() {
+        return Component.translatable("gui.stashlight.sort.count.tooltip");
     }
 
     @Override

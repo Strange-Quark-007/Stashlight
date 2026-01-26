@@ -1,11 +1,11 @@
 package dev.strangequark.stashlight.render;
 
 
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.strangequark.stashlight.model.HighlightPos;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.phys.Vec3;
 
 public final class HighlightRenderer {
 
@@ -14,7 +14,7 @@ public final class HighlightRenderer {
 
     public static void render(WorldRenderContext context) {
         VertexConsumer vc = context.consumers().getBuffer(HighlightRenderLayer.XRAY_LAYER);
-        Vec3d cam = context.gameRenderer().getCamera().getPos();
+        Vec3 cam = context.gameRenderer().getMainCamera().getPosition();
 
         HighlightManager.removeExpired();
 
@@ -22,15 +22,15 @@ public final class HighlightRenderer {
             long elapsed = System.currentTimeMillis() - highlight.startTimeMillis();
             if (!HighlightEffect.shouldRender(elapsed)) continue;
 
-            MatrixStack matrices = context.matrices();
-            matrices.push();
+            PoseStack matrices = context.matrices();
+            matrices.pushPose();
             matrices.translate(
                     highlight.pos().getX() - cam.x,
                     highlight.pos().getY() - cam.y,
                     highlight.pos().getZ() - cam.z
             );
             HighlightGeometry.drawWireframeBox(matrices, vc, cam, highlight.pos());
-            matrices.pop();
+            matrices.popPose();
         }
     }
 }
