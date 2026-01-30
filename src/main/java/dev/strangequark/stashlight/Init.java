@@ -3,8 +3,8 @@ package dev.strangequark.stashlight;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.storage.LevelResource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,26 +31,26 @@ public final class Init {
     }
 
     public static Path getFileName() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         String fileName;
 
-        if (client.isInSingleplayer()) {
-            var server = client.getServer();
+        if (client.isSingleplayer()) {
+            var server = client.getSingleplayerServer();
             if (server == null) {
                 throw new IllegalStateException("Singleplayer server missing");
             }
-            Path worldFolder = server.getSavePath(WorldSavePath.ROOT).normalize();
+            Path worldFolder = server.getWorldPath(LevelResource.ROOT).normalize();
 
             fileName = worldFolder.getFileName().toString()
                     .replace(" ", "_")
                     .replace("(", "_")
                     .replace(")", "_");
         } else {
-            var info = client.getCurrentServerEntry();
+            var info = client.getCurrentServer();
             if (info == null) {
                 throw new IllegalStateException("Multiplayer server info missing");
             }
-            fileName = "MP_" + info.address.replace(':', '_').replace('/', '_');
+            fileName = "MP_" + info.ip.replace(':', '_').replace('/', '_');
         }
 
         return ROOT.resolve(fileName + ".dat");

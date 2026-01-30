@@ -2,19 +2,18 @@ package dev.strangequark.stashlight.gui;
 
 
 import io.wispforest.owo.ui.component.LabelComponent;
-import io.wispforest.owo.ui.core.OwoUIDrawContext;
+import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 public class QuantityLabel extends LabelComponent {
     private float scale = 1f;
 
-    public QuantityLabel(Text text) {
+    public QuantityLabel(Component text) {
         super(text);
     }
 
-    public static QuantityLabel of(Text text) {
+    public static QuantityLabel of(Component text) {
         return new QuantityLabel(text);
     }
 
@@ -28,8 +27,8 @@ public class QuantityLabel extends LabelComponent {
 
     // 5. Override draw() to apply scaling transformation
     @Override
-    public void draw(OwoUIDrawContext context, int mouseX, int mouseY, float partialTicks, float delta) {
-        var matrices = context.getMatrices();
+    public void draw(OwoUIGraphics graphics, int mouseX, int mouseY, float partialTicks, float delta) {
+        var matrices = graphics.getMatrixStack();
 
         matrices.pushMatrix();
 
@@ -40,50 +39,10 @@ public class QuantityLabel extends LabelComponent {
         matrices.scale(this.scale, this.scale);
         matrices.translate(-this.x, -this.y);
 
-        this.drawLegacy(context);
-
-        matrices.popMatrix();
-    }
-
-    // Legacy draw method from owo 1.21.9
-    public void drawLegacy(OwoUIDrawContext context) {
-        var matrices = context.getMatrices();
-
-        matrices.pushMatrix();
-        matrices.translate(0, 1f / MinecraftClient.getInstance().getWindow().getScaleFactor());
-
-        int x = this.x;
-        int y = this.y;
-
-        if (this.horizontalSizing.get().isContent()) {
-            x += this.horizontalSizing.get().value;
-        }
-        if (this.verticalSizing.get().isContent()) {
-            y += this.verticalSizing.get().value;
-        }
-
-        switch (this.verticalTextAlignment) {
-            case CENTER -> y += (this.height - (this.textHeight())) / 2;
-            case BOTTOM -> y += this.height - (this.textHeight());
-        }
-
-        final int lambdaX = x;
-        final int lambdaY = y;
-
-        for (int i = 0; i < this.wrappedText.size(); i++) {
-            var renderText = this.wrappedText.get(i);
-            int renderX = lambdaX;
-
-            switch (this.horizontalTextAlignment) {
-                case CENTER -> renderX += (this.width - this.textRenderer.getWidth(renderText)) / 2;
-                case RIGHT -> renderX += this.width - this.textRenderer.getWidth(renderText);
-            }
-
-            int renderY = lambdaY + i * (this.lineHeight() + this.lineSpacing());
-            renderY += this.lineHeight() - this.textRenderer.fontHeight;
-
-            context.drawText(this.textRenderer, renderText, renderX, renderY, this.color.get().argb(), this.shadow);
-        }
+        // Call the super method to draw the actual text.
+        // The super.draw() logic for positioning is correct, but it now operates
+        // within the scaled coordinate system.
+        super.draw(graphics, mouseX, mouseY, partialTicks, delta);
 
         matrices.popMatrix();
     }

@@ -17,39 +17,23 @@ repositories {
     // See https://docs.gradle.org/current/userguide/declaring_repositories.html
     // for more information about repositories.
     maven { url 'https://maven.wispforest.io/releases/' }
-    flatDir {
-        dirs "libs"
+    maven {
+        name = "JitPack"
+        url = "https://jitpack.io"
     }
 }
 
 dependencies {
     // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
     // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    // modImplementation "io.wispforest:owo-lib:${project.owo_version}"
-    modImplementation name: "owo-lib-0.12.24+1.21.11"
-    include name: "owo-lib-0.12.24+1.21.11"
-    // include "io.wispforest:owo-sentinel:${project.owo_vers}"
-
-    modImplementation "io.wispforest:endec:0.1.11"
-    include "io.wispforest:endec:0.1.11"
-
-    // The adapters for different formats
-    include "io.wispforest.endec:gson:0.1.6"
-    include "io.wispforest.endec:netty:0.1.5"
-    include "io.wispforest.endec:jankson:0.1.6"
-    include "blue.endless:jankson:1.2.3"
-
-    // Ensure these are available on the classpath too
-    implementation "io.wispforest.endec:gson:0.1.6"
-    implementation "io.wispforest.endec:netty:0.1.5"
-    implementation "io.wispforest.endec:jankson:0.1.6"
-    implementation "blue.endless:jankson:1.2.3"
+    modImplementation "io.wispforest:owo-lib:${project.owo_version}"
+    include "io.wispforest:owo-sentinel:${project.owo_version}"
 }
 
 processResources {

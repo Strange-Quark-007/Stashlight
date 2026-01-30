@@ -6,11 +6,12 @@
   "gui.stashlight.label.rangeAll": "All",
   "gui.stashlight.label.rangeChunks": "%s (Chunks)",
   "gui.stashlight.label.searchRange": "Search Range: %s",
-  "key.category.stashlight.stashlight": "Stashlight",
   "gui.stashlight.sort.alphabetical.tooltip": "Sort by Name",
   "gui.stashlight.sort.count.tooltip": "Sort by Count",
   "gui.stashlight.sort.distance.tooltip": "Sort by Distance",
+  "key.category.stashlight.stashlight": "Stashlight",
   "key.stashlight.search_menu": "Search Menu",
+  "render.stashlight.highlight.incorrectDimension": "Container is in a different dimension",
   "screen.stashlight.label.searchContainers": "Search Containers",
   "screen.stashlight.lookAtTarget": "Look at target",
   "screen.stashlight.showSmallContainers": "Show small containers (< 9 slots)"
