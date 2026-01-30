@@ -2,10 +2,7 @@ package dev.strangequark.stashlight.screen;
 
 import dev.strangequark.stashlight.config.Config;
 import dev.strangequark.stashlight.gui.ItemSlot;
-import dev.strangequark.stashlight.logic.filter.DimensionFilter;
-import dev.strangequark.stashlight.logic.filter.FilterManager;
-import dev.strangequark.stashlight.logic.filter.FilterStrategy;
-import dev.strangequark.stashlight.logic.filter.SmallContainerFilter;
+import dev.strangequark.stashlight.logic.filter.*;
 import dev.strangequark.stashlight.logic.sort.SortManager;
 import dev.strangequark.stashlight.model.IndexedItem;
 import dev.strangequark.stashlight.repository.ContainerRepository;
@@ -61,6 +58,7 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
 
         filterManager.setCyclingStrategies(strategies);
         filterManager.addAlwaysOn(new SmallContainerFilter());
+        filterManager.addAlwaysOn(new RadiusFilter());
     }
 
     @Override
@@ -104,11 +102,11 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
                 .button(Text.of(sortManager.getCurrent().getLabel()), b -> {
                     sortManager.cycle();
                     b.setMessage(Text.of(sortManager.getCurrent().getLabel()));
-                    b.tooltip(Text.of(sortManager.getCurrent().getTooltip()));
+                    b.tooltip(sortManager.getCurrent().getTooltip());
                     config.setSortKey(sortManager.getCurrent().key());
                     refreshGrid(searchField.getText());
                 })
-                .tooltip(Text.of(sortManager.getCurrent().getTooltip()))
+                .tooltip(sortManager.getCurrent().getTooltip())
                 .sizing(Sizing.fixed(COMPONENT_HEIGHT), Sizing.fixed(COMPONENT_HEIGHT));
 
         this.searchField = Components.textBox(Sizing.fixed(SEARCH_WIDTH), config.searchQuery());
@@ -118,7 +116,16 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
             refreshGrid(text);
         });
 
-        searchBar.child(sortBtn).child(this.searchField);
+        ButtonComponent dimFilterBtn = (ButtonComponent) Components.button(
+                        Text.translatable("gui.stashlight.label.dimension").append(": ").append(filterManager.getCurrentLabel()),
+                        b -> {
+                            filterManager.cycle();
+                            b.setMessage(Text.translatable("gui.stashlight.label.dimension").append(": ").append(filterManager.getCurrentLabel()));
+                            refreshGrid(searchField.getText());
+                        })
+                .sizing(Sizing.fixed(FILTER_WIDTH), Sizing.fixed(COMPONENT_HEIGHT));
+
+        searchBar.child(sortBtn).child(this.searchField).child(dimFilterBtn);
 
         // --- 3. SCROLLABLE GRID ---
         FlowLayout gridWrapper = (FlowLayout) Containers.verticalFlow(Sizing.fill(100), Sizing.expand(100))
@@ -150,15 +157,6 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
                 .gap(GAP)
                 .verticalAlignment(VerticalAlignment.CENTER);
 
-        ButtonComponent dimFilterBtn = (ButtonComponent) Components.button(
-                        Text.translatable("gui.stashlight.label.dimension").append(": ").append(filterManager.getCurrentLabel()),
-                        b -> {
-                            filterManager.cycle();
-                            b.setMessage(Text.translatable("gui.stashlight.label.dimension").append(": ").append(filterManager.getCurrentLabel()));
-                            refreshGrid(searchField.getText());
-                        })
-                .sizing(Sizing.fixed(FILTER_WIDTH), Sizing.fixed(COMPONENT_HEIGHT));
-
         CheckboxComponent lookAtCheckbox = (CheckboxComponent) Components
                 .checkbox(Text.translatable("screen.stashlight.lookAtTarget"))
                 .checked(config.lookAtTarget()).onChanged(config::setLookAtTarget)
@@ -174,7 +172,23 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
                 .margins(Insets.top(BORDER));
 
 
-        footer.child(dimFilterBtn).child(lookAtCheckbox).child(showSmallCheckbox);
+        DiscreteSliderComponent distanceSlider = Components.discreteSlider(Sizing.fixed(SLIDER_WIDTH), 0, 5);
+        distanceSlider.snap(true).decimalPlaces(0);
+
+        distanceSlider.setFromDiscreteValue(config.searchRadiusIndex());
+        distanceSlider.message(s -> RadiusFilter.getLabelForIndex(config.searchRadiusIndex()));
+
+        distanceSlider.onChanged().subscribe(v -> {
+            int index = (int) Math.round(v);
+            if (index == config.searchRadiusIndex()) {
+                return;
+            }
+            config.setSearchRadiusIndex(index);
+            distanceSlider.message(s -> RadiusFilter.getLabelForIndex(config.searchRadiusIndex()));
+            refreshGrid(searchField.getText());
+        });
+
+        footer.child(distanceSlider).child(lookAtCheckbox).child(showSmallCheckbox);
 
         // --- ASSEMBLE ---
         mainWindow.child(title).child(searchBar).child(gridWrapper).child(footer);
