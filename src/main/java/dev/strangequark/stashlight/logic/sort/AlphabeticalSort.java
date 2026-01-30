@@ -2,6 +2,7 @@ package dev.strangequark.stashlight.logic.sort;
 
 import dev.strangequark.stashlight.gui.UIStyle;
 import dev.strangequark.stashlight.model.IndexedItem;
+import net.minecraft.text.Text;
 
 import java.util.List;
 
@@ -17,8 +18,8 @@ public class AlphabeticalSort implements SortStrategy {
     }
 
     @Override
-    public String getTooltip() {
-        return "Sort by Name";
+    public Text getTooltip() {
+        return Text.translatable("gui.stashlight.sort.alphabetical.tooltip");
     }
 
     @Override

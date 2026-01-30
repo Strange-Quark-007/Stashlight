@@ -26,6 +26,7 @@ public final class Config {
 
     private boolean lookAtTarget = false;
     private boolean showSmallContainers = false;
+    private int searchRadiusIndex = 2;
 
     /* ---------------- runtime-only state ---------------- */
 
@@ -58,6 +59,12 @@ public final class Config {
         return sortKey;
     }
 
+    public int searchRadiusIndex() {
+        if (searchRadiusIndex < 0 || searchRadiusIndex > 5) {
+            searchRadiusIndex = 2;
+        }
+        return searchRadiusIndex;
+    }
 
     public void setLookAtTarget(boolean value) {
         if (this.lookAtTarget == value) return;
@@ -79,15 +86,26 @@ public final class Config {
         this.sortKey = key;
     }
 
+    public void setSearchRadiusIndex(int index) {
+        // Clamp before saving
+        this.searchRadiusIndex = Math.max(0, Math.min(index, 5));
+        save();
+    }
+
     public static void load() {
         if (Files.exists(FILE)) {
             try {
                 INSTANCE = GSON.fromJson(Files.readString(FILE), Config.class);
+                INSTANCE.validate();
                 return;
             } catch (Exception ignored) {
             }
         }
         INSTANCE = new Config();
+    }
+
+    private void validate() {
+        this.searchRadiusIndex = Math.max(0, Math.min(this.searchRadiusIndex, 5));
     }
 
     public static void save() {

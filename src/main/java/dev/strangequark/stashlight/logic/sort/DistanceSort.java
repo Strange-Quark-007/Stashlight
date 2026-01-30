@@ -3,6 +3,7 @@ package dev.strangequark.stashlight.logic.sort;
 import dev.strangequark.stashlight.gui.UIStyle;
 import dev.strangequark.stashlight.model.IndexedItem;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.List;
@@ -19,8 +20,8 @@ public class DistanceSort implements SortStrategy {
     }
 
     @Override
-    public String getTooltip() {
-        return "Sort by Distance";
+    public Text getTooltip() {
+        return Text.translatable("gui.stashlight.sort.distance.tooltip");
     }
 
     @Override

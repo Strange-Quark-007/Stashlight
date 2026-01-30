@@ -1,11 +1,17 @@
 {
-  "key.category.stashlight.stashlight": "Stashlight",
-  "key.stashlight.search_menu": "Search Menu",
-  "gui.stashlight.label.dimension": "Dimension",
-  "gui.stashlight.label.container": "Container",
-  "gui.stashlight.label.location": "Location",
   "gui.stashlight.label.blocksAway": " (%s blocks away)",
+  "gui.stashlight.label.container": "Container",
+  "gui.stashlight.label.dimension": "Dimension",
+  "gui.stashlight.label.location": "Location",
+  "gui.stashlight.label.rangeAll": "All",
+  "gui.stashlight.label.rangeChunks": "%s (Chunks)",
+  "gui.stashlight.label.searchRange": "Search Range: %s",
+  "key.category.stashlight.stashlight": "Stashlight",
+  "gui.stashlight.sort.alphabetical.tooltip": "Sort by Name",
+  "gui.stashlight.sort.count.tooltip": "Sort by Count",
+  "gui.stashlight.sort.distance.tooltip": "Sort by Distance",
+  "key.stashlight.search_menu": "Search Menu",
   "screen.stashlight.label.searchContainers": "Search Containers",
   "screen.stashlight.lookAtTarget": "Look at target",
-  "screen.stashlight.showSmallContainers": "Show small containers"
+  "screen.stashlight.showSmallContainers": "Show small containers (< 9 slots)"
 }
