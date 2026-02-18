@@ -13,6 +13,18 @@ public record IndexedItem(
         String dimension,
         String containerName,
         int containerCapacity,
-        long timestamp
+        long timestamp,
+        String searchKey
 ) {
+    public IndexedItem(ItemStack stack, BlockPos pos, String dimension, String containerName, int containerCapacity, long timestamp) {
+        this(
+                stack,
+                pos,
+                dimension,
+                containerName,
+                containerCapacity,
+                timestamp,
+                stack.getHoverName().getString().toLowerCase()
+        );
+    }
 }

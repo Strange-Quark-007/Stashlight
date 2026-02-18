@@ -68,8 +68,14 @@ public class Stashlight implements ClientModInitializer {
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (searchKey.isDown()) {
-                client.setScreen(new SearchScreen(repository));
+            while (searchKey.consumeClick()) {
+                if (client.level == null || repository == null) continue;
+
+                if (client.screen instanceof SearchScreen) {
+                    client.setScreen(null);
+                } else {
+                    client.setScreen(new SearchScreen(repository));
+                }
             }
         });
 

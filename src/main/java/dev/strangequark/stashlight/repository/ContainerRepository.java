@@ -1,5 +1,6 @@
 package dev.strangequark.stashlight.repository;
 
+import dev.strangequark.stashlight.Stashlight;
 import dev.strangequark.stashlight.model.ContainerSnapshot;
 import dev.strangequark.stashlight.model.IndexedItem;
 import dev.strangequark.stashlight.model.StackKey;
@@ -29,6 +30,10 @@ public class ContainerRepository {
         t.setDaemon(true);
         return t;
     });
+
+    // Prevents submitting duplicate save tasks when saveIfDirty() is called
+    // rapidly (e.g. every 3000 ticks) before a previous save has finished.
+    private volatile boolean isSavePending = false;
 
     public ContainerRepository(Serializer serializer) {
         this.serializer = serializer;
@@ -157,12 +162,20 @@ public class ContainerRepository {
     }
 
     public void saveIfDirty() {
-        if (this.isDirty) {
-            synchronized (CONTAINER_ENTRIES_MAP) {
-                serializer.write(CONTAINER_ENTRIES_MAP);
-                this.isDirty = false;
+        if (!this.isDirty || this.isSavePending) return;
+        this.isSavePending = true;
+        // Snapshot the data under the lock, then write to disk off the main thread.
+        // NbtIo.writeCompressed() is blocking I/O — never run it on the render thread.
+        cleanupExecutor.submit(() -> {
+            try {
+                synchronized (CONTAINER_ENTRIES_MAP) {
+                    serializer.write(CONTAINER_ENTRIES_MAP);
+                    this.isDirty = false;
+                }
+            } finally {
+                this.isSavePending = false;
             }
-        }
+        });
     }
 
     public void rebuildIndex() {
@@ -194,7 +207,16 @@ public class ContainerRepository {
     }
 
     public void shutdown() {
-        this.saveIfDirty();
+        // Flush any pending dirty state, then wait for the executor to finish
+        // so the final save completes before the game disconnects.
+        saveIfDirty();
         cleanupExecutor.shutdown();
+        try {
+            if (!cleanupExecutor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                Stashlight.LOGGER.warn("Stashlight cleanup executor did not finish in time");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

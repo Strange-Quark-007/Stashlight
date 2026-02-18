@@ -15,10 +15,14 @@ public class UIStyle {
     public static final int SEARCH_WIDTH = 200;
     public static final int SLIDER_WIDTH = 150;
     public static final int SCROLL_WIDTH = 6;
-
-    public static final int SLIDER_STEP = 8;
+    
     public static final int SCREEN_FILL_PERCENT = 95;
 
     public static final int GRID_BORDER = 0xFF555555;
     public static final int SCROLL_TRACK = 0xFF202020;
+
+    public static final int SLOT_BG = 0x55888888;
+    public static final int SLOT_HOVER = 0x44FFFFFF;
+    public static final int SLOT_OUTLINE = 0xFFFFFFFF;
+    public static final int COUNT_COLOR = 0xFFFFFFFF;
 }

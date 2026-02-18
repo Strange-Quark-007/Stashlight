@@ -1,7 +1,7 @@
 package dev.strangequark.stashlight.screen;
 
 import dev.strangequark.stashlight.config.Config;
-import dev.strangequark.stashlight.gui.ItemSlot;
+import dev.strangequark.stashlight.gui.ItemGrid;
 import dev.strangequark.stashlight.logic.filter.*;
 import dev.strangequark.stashlight.logic.sort.SortManager;
 import dev.strangequark.stashlight.model.IndexedItem;
@@ -11,7 +11,6 @@ import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.component.*;
 import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.container.GridLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.core.*;
 import net.minecraft.client.Minecraft;
@@ -23,18 +22,23 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static dev.strangequark.stashlight.gui.UIStyle.*;
 
 public class SearchScreen extends BaseOwoScreen<FlowLayout> {
-
     private final ContainerRepository repository;
     private FlowLayout rootComponent;
-    private FlowLayout scrollContent;
+    private FlowLayout mainWindow;
     private TextBoxComponent searchField;
+    private ItemGrid itemGrid;
 
     private final FilterManager filterManager = new FilterManager();
     private final SortManager sortManager;
+
+    private static final long DEBOUNCE_MS = 150;
+    private String pendingQuery = null;
+    private long lastQueryChangeTime = 0;
 
     public SearchScreen(ContainerRepository repository) {
         this.repository = repository;
@@ -74,6 +78,7 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
             this.searchField.setHighlightPos(0);
             this.searchField.moveCursorToEnd(false);
         }
+        this.rootComponent.queue(() -> this.refreshGrid(this.searchField.getValue()));
     }
 
     @Override
@@ -82,7 +87,7 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
         var config = Config.get();
 
         // --- 1. MAIN WINDOW ---
-        FlowLayout mainWindow = (FlowLayout) Containers
+        this.mainWindow = (FlowLayout) Containers
                 .verticalFlow(Sizing.fill(SCREEN_FILL_PERCENT), Sizing.fill(SCREEN_FILL_PERCENT))
                 .gap(GAP)
                 .surface(Surface.VANILLA_TRANSLUCENT)
@@ -113,7 +118,10 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
         this.searchField.setMaxLength(100);
         this.searchField.onChanged().subscribe(text -> {
             config.setSearchQuery(text);
-            refreshGrid(text);
+            // Don't rebuild immediately — record the change and let the debounce
+            // in render() fire refreshGrid once typing has settled.
+            this.pendingQuery = text;
+            this.lastQueryChangeTime = System.currentTimeMillis();
         });
 
         ButtonComponent dimFilterBtn = (ButtonComponent) Components.button(
@@ -132,12 +140,16 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
                 .surface(Surface.outline(GRID_BORDER))
                 .padding(Insets.of(BORDER));
 
-        this.scrollContent = (FlowLayout) Containers.verticalFlow(Sizing.content(), Sizing.content())
-                .padding(Insets.right(GAP))
+        this.itemGrid = new ItemGrid();
+
+        FlowLayout scrollContent = (FlowLayout) Containers
+                .verticalFlow(Sizing.content(), Sizing.content())
                 .horizontalAlignment(HorizontalAlignment.CENTER);
 
+        scrollContent.child(this.itemGrid);
+
         ScrollContainer<FlowLayout> scrollContainer = Containers
-                .verticalScroll(Sizing.fill(100), Sizing.fill(100), this.scrollContent);
+                .verticalScroll(Sizing.fill(100), Sizing.fill(100), scrollContent);
 
         scrollContainer
                 .scrollbarThiccness(SCROLL_WIDTH)
@@ -193,64 +205,66 @@ public class SearchScreen extends BaseOwoScreen<FlowLayout> {
         // --- ASSEMBLE ---
         mainWindow.child(title).child(searchBar).child(gridWrapper).child(footer);
         rootComponent.child(mainWindow).alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
-
-        refreshGrid(config.searchQuery());
     }
 
     private void refreshGrid(String query) {
-        this.scrollContent.clearChildren();
-
         int windowWidth = (int) (this.width * (SCREEN_FILL_PERCENT / 100.0));
-        // Total available horizontal space minus padding and scrollbar area
-        int availableWidth = windowWidth - (PADDING * 2) - (SCROLL_WIDTH + GAP);
+        // Subtract mainWindow padding (×2), scrollbar width, and gap (reserved for ItemGrid's internal padding)
+        int availableVars = (PADDING * 2) + SCROLL_WIDTH + GAP + (BORDER * 2);
+        int availableWidth = windowWidth - availableVars;
+        int slotsPerRow = Math.max(1, availableWidth / (SLOT_SIZE + GAP));
 
-        int itemFootprint = SLOT_SIZE + GAP;
-        int slotsPerRow = Math.max(1, availableWidth / itemFootprint);
-
-        List<IndexedItem> filteredItems = repository.getSearchIndex().stream()
-                .filter(item -> {
-                    boolean matchesQuery = matchesDeep(item.stack(), query);
-                    return matchesQuery && filterManager.matches(item);
-                }).toList();
-
-        List<IndexedItem> sortedItems = new ArrayList<>(filteredItems);
-        if (sortManager.getCurrent() != null) sortManager.getCurrent().sort(sortedItems);
-
-        int rows = (int) Math.ceil((double) sortedItems.size() / slotsPerRow);
-        GridLayout grid = (GridLayout) Containers.grid(Sizing.fill(100), Sizing.content(), rows, slotsPerRow)
-                .margins(Insets.of(GAP / 2));
-
-        for (int i = 0; i < sortedItems.size(); i++) {
-            grid.child(ItemSlot.of(sortedItems.get(i)).margins(Insets.of(GAP / 2)), i / slotsPerRow, i % slotsPerRow);
+        // Snap window width to exactly fit the columns
+        int contentWidth = slotsPerRow * (SLOT_SIZE + GAP) + GAP;
+        int snappedWidth = contentWidth + availableVars;
+        if (this.mainWindow != null) {
+            this.mainWindow.horizontalSizing(Sizing.fixed(snappedWidth));
         }
 
-        this.scrollContent.child(grid);
+        final String lowerQuery = query.toLowerCase();
+
+        List<IndexedItem> sortedItems = repository.getSearchIndex().stream()
+                .filter(item -> matchesDeep(item, lowerQuery) && filterManager.matches(item))
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        if (sortManager.getCurrent() != null) sortManager.getCurrent().sort(sortedItems);
+
+        this.itemGrid.setItems(sortedItems, slotsPerRow);
     }
 
-    public static boolean matchesDeep(ItemStack stack, String query) {
-        if (query.isEmpty()) return true;
-        String q = query.toLowerCase();
+    public static boolean matchesDeep(IndexedItem item, String lowerQuery) {
+        if (lowerQuery.isEmpty()) return true;
 
-        // 1. Check main item name
-        if (stack.getHoverName().getString().toLowerCase().contains(q)) return true;
+        // 1. Check main item name (searchKey is already lowercase)
+        if (item.searchKey().contains(lowerQuery)) return true;
 
         // 2. Check Shulker-like containers
-        var container = stack.get(DataComponents.CONTAINER);
+        var container = item.stack().get(DataComponents.CONTAINER);
         if (container != null) {
             for (ItemStack inner : container.nonEmptyItems()) {
-                if (inner.getHoverName().getString().toLowerCase().contains(q)) return true;
+                if (inner.getHoverName().getString().toLowerCase().contains(lowerQuery)) return true;
             }
         }
 
         // 3. Check Bundles
-        var bundle = stack.get(DataComponents.BUNDLE_CONTENTS);
+        var bundle = item.stack().get(DataComponents.BUNDLE_CONTENTS);
         if (bundle != null) {
             for (ItemStack inner : bundle.items()) {
-                if (inner.getHoverName().getString().toLowerCase().contains(q)) return true;
+                if (inner.getHoverName().getString().toLowerCase().contains(lowerQuery)) return true;
             }
         }
 
         return false;
+    }
+
+    @Override
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+        // Debounce: fire refreshGrid only after typing has settled for DEBOUNCE_MS.
+        if (pendingQuery != null && System.currentTimeMillis() - lastQueryChangeTime >= DEBOUNCE_MS) {
+            refreshGrid(pendingQuery);
+            pendingQuery = null;
+        }
+        super.render(context, mouseX, mouseY, delta);
     }
 
     @Override
