@@ -42,46 +42,46 @@ public class ContainerRepository {
     }
 
     public void runCleanup(ClientLevel world) {
-        String dimension = Util.getDimensionName(world);
-        Map<BlockPos, ContainerSnapshot> dataMap = CONTAINER_ENTRIES_MAP.get(dimension);
+    String dimension = Util.getDimensionName(world);
+    Map<BlockPos, ContainerSnapshot> dataMap = CONTAINER_ENTRIES_MAP.get(dimension);
 
-        if (dataMap == null || dataMap.isEmpty()) return;
-
-        cleanupExecutor.submit(() -> {
-            // Step 1: Collect positions to check (quick, inside lock)
-            List<BlockPos> toCheck;
-            synchronized (CONTAINER_ENTRIES_MAP) {
-                toCheck = new ArrayList<>(dataMap.keySet());
-            }
-
-            // Step 2: Check world state (slow, OUTSIDE lock - doesn't block other operations)
-            List<BlockPos> toRemove = new ArrayList<>();
-            for (BlockPos pos : toCheck) {
-                try {
-                    if (world.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
-                        var state = world.getBlockState(pos);
-                        if (!Util.isValidSearchableContainer(state)) {
-                            toRemove.add(pos);
-                        }
-                    }
-                } catch (Exception e) {
-                    // Skip this position if world access fails
-                }
-            }
-
-
-            if (!toRemove.isEmpty()) {
-                synchronized (CONTAINER_ENTRIES_MAP) {
-                    for (BlockPos pos : toRemove) {
-                        dataMap.remove(pos);
-                        removeFromIndex(dimension, pos);
-                    }
-                    this.isDirty = true;
-                }
-                saveIfDirty();
-            }
-        });
+    if (dataMap == null || dataMap.isEmpty()) {
+        return;
     }
+
+    // Step 1: Collect positions to check (main thread snapshot)
+    List<BlockPos> toCheck;
+    synchronized (CONTAINER_ENTRIES_MAP) {
+        toCheck = new ArrayList<>(dataMap.keySet());
+    }
+
+    // Step 2: World access on main thread — not thread-safe to do this in executor
+    List<BlockPos> toRemove = new ArrayList<>();
+
+    for (BlockPos pos : toCheck) {
+        if (world.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            if (!Util.isValidSearchableContainer(world.getBlockState(pos))) {
+                toRemove.add(pos);
+            }
+        }
+    }
+
+    if (toRemove.isEmpty()) {
+        return;
+    }
+
+    // Step 3: Only map mutation + dirty flag + save goes to executor
+    cleanupExecutor.submit(() -> {
+        synchronized (CONTAINER_ENTRIES_MAP) {
+            for (BlockPos pos : toRemove) {
+                dataMap.remove(pos);
+                removeFromIndex(dimension, pos);
+            }
+            this.isDirty = true;
+        }
+        saveIfDirty();
+    });
+}
 
     public void update(String dimension, BlockPos pos, String blockName, int capacity, List<ItemStack> stacks) {
         List<ItemStack> copiedStacks = new ArrayList<>();
