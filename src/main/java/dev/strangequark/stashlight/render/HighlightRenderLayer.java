@@ -1,10 +1,10 @@
 package dev.strangequark.stashlight.render;
 
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.strangequark.stashlight.Stashlight;
 import dev.strangequark.stashlight.mixin.RenderTypeInvoker;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -21,7 +21,8 @@ public class HighlightRenderLayer {
             RenderPipelines.register(
                     RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
                             .withLocation(Identifier.fromNamespaceAndPath(Stashlight.MOD_ID, "xray"))
-                            .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS)
+                            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+                            .withPrimitiveTopology(PrimitiveTopology.QUADS)
                             .withDepthStencilState(XRAY_DEPTH_STATE)
                             .build()
             );

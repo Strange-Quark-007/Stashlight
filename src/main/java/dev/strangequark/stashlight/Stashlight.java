@@ -71,10 +71,10 @@ public class Stashlight implements ClientModInitializer {
             while (searchKey.consumeClick()) {
                 if (client.level == null || repository == null) continue;
 
-                if (client.screen instanceof SearchScreen) {
-                    client.setScreen(null);
+                if (client.gui.screen() instanceof SearchScreen) {
+                    client.gui.setScreen(null);
                 } else {
-                    client.setScreen(new SearchScreen(repository));
+                    client.gui.setScreen(new SearchScreen(repository));
                 }
             }
         });
@@ -94,12 +94,12 @@ public class Stashlight implements ClientModInitializer {
             }
         });
 
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+        ClientPlayConnectionEvents.JOIN.register((handler, _, _) -> {
             serializer = new Serializer(Init.getFileName(), handler.registryAccess());
             repository = new ContainerRepository(serializer);
         });
 
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+        ClientPlayConnectionEvents.DISCONNECT.register((_, _) -> {
             if (repository != null) {
                 repository.shutdown();
 
@@ -138,7 +138,7 @@ public class Stashlight implements ClientModInitializer {
         if (screen instanceof AbstractContainerScreen<?> handled) {
             var handler = handled.getMenu();
             // Serialize on close to ensure the database reflects the final state of the inventory.
-            ScreenEvents.remove(screen).register(closedScreen -> serializeContainer(client, handler));
+            ScreenEvents.remove(screen).register(_ -> serializeContainer(client, handler));
         }
     }
 

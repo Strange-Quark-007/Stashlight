@@ -14,7 +14,7 @@ public final class HighlightGeometry {
     private static final float R = 1f, G = 1f, B = 1f, A = 1f;
 
 
-    static void drawWireframeBox(PoseStack matrices, VertexConsumer vc, Vec3 cam, BlockPos pos) {
+    static void drawWireframeBox(PoseStack.Pose matrices, VertexConsumer vc, Vec3 cam, BlockPos pos) {
         double dist = pos.distToCenterSqr(cam.x, cam.y, cam.z);
         float t = (float) Math.min(THICKNESS + Math.sqrt(dist) * 0.002, MAX_THICKNESS);
 
@@ -40,10 +40,10 @@ public final class HighlightGeometry {
         drawBox(matrices, vc, max - t, max - t, min + t, max, max, max - t);
     }
 
-    private static void drawBox(PoseStack matrices, VertexConsumer vc,
+    private static void drawBox(PoseStack.Pose matrices, VertexConsumer vc,
                                 float x1, float y1, float z1,
                                 float x2, float y2, float z2) {
-        Matrix4f mat = matrices.last().pose();
+        Matrix4f mat = matrices.pose();
 
         // Top
         vertex(vc, mat, x1, y2, z1);

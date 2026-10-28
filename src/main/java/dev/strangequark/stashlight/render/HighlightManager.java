@@ -25,7 +25,7 @@ public final class HighlightManager {
         String currentDim = Util.getDimensionName(client.level);
         if (!currentDim.equals(item.dimension())) {
             notifyWrongDimension(client.player);
-            client.setScreen(null);
+            client.gui.setScreen(null);
             return false;
         }
 

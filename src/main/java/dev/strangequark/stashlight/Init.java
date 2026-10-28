@@ -34,7 +34,7 @@ public final class Init {
         Minecraft client = Minecraft.getInstance();
         String fileName;
 
-        if (client.isSingleplayer()) {
+        if (client.isLocalServer()) {
             var server = client.getSingleplayerServer();
             if (server == null) {
                 throw new IllegalStateException("Singleplayer server missing");

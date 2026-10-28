@@ -165,7 +165,7 @@ public class ItemGrid extends BaseUIComponent {
         if (!HighlightManager.tryHighlight(item)) return true;
 
         if (Config.get().lookAtTarget()) lookAt(mc.player, item.pos());
-        mc.setScreen(null);
+        mc.gui.setScreen(null);
         return true;
     }
 
