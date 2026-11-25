@@ -1,6 +1,7 @@
 plugins {
     id 'net.fabricmc.fabric-loom' version "${loom_version}"
     id 'maven-publish'
+    id 'me.modmuss50.mod-publish-plugin' version "${mod_publish_version}"
 }
 
 version = project.mod_version
@@ -80,5 +81,80 @@ publishing {
         // Notice: This block does NOT have the same function as the block in the top level.
         // The repositories here will be used for publishing your artifact, not for
         // retrieving dependencies.
+    }
+}
+
+def targetMcVersions = (findProperty('publish_minecraft_versions') ?: project.minecraft_version)
+        .toString().split(',').collect { it.trim() }.findAll { !it.isEmpty() }
+def releaseTypeProp = (findProperty('release_type') ?: 'release').toString().toLowerCase()
+def releaseNotesFile = file('release-notes.md')
+
+def mrToken = providers.gradleProperty('MODRINTH_TOKEN').orElse(providers.environmentVariable('MODRINTH_TOKEN'))
+def cfToken = providers.gradleProperty('CURSEFORGE_TOKEN').orElse(providers.environmentVariable('CURSEFORGE_TOKEN'))
+def mrId = findProperty('modrinth_id')?.toString()?.trim()
+def cfId = findProperty('curseforge_id')?.toString()?.trim()
+
+def parseDepList = { String key ->
+    (findProperty(key) ?: '').toString().split(',').collect { it.trim() }.findAll { !it.isEmpty() }
+}
+def publishRequires = parseDepList('publish_requires')
+def publishOptional = parseDepList('publish_optional')
+
+publishMods {
+    file = tasks.named('jar').flatMap { it.archiveFile }
+    dryRun = providers.gradleProperty('dryRun').map { it.toBoolean() }.orElse(false)
+
+    changelog = provider {
+        if (!releaseNotesFile.exists() || releaseNotesFile.text.trim().isEmpty()) {
+            throw new GradleException("Release notes file '${releaseNotesFile.absolutePath}' is missing or empty.")
+        }
+        return releaseNotesFile.text.trim()
+    }
+
+    type = releaseTypeProp == 'alpha' ? ALPHA : (releaseTypeProp == 'beta' ? BETA : STABLE)
+    modLoaders.addAll('fabric', 'quilt')
+    displayName = "${project.archives_base_name} ${project.mod_version}"
+    version = project.mod_version
+
+    if (mrId) {
+        modrinth {
+            projectId = mrId
+            accessToken = mrToken
+            environment = 'CLIENT_ONLY'
+            targetMcVersions.each { ver -> minecraftVersions.add(ver) }
+            requires 'fabric-api'
+            publishRequires.each { dep -> if (dep != 'fabric-api') requires dep }
+            publishOptional.each { dep -> optional dep }
+        }
+    }
+
+    if (cfId) {
+        curseforge {
+            projectId = cfId
+            accessToken = cfToken
+            client = true
+            server = false
+            targetMcVersions.each { ver -> minecraftVersions.add(ver) }
+            requires 'fabric-api'
+            publishRequires.each { dep -> if (dep != 'fabric-api') requires dep }
+            publishOptional.each { dep -> optional dep }
+        }
+    }
+}
+
+tasks.named('publishMods').configure {
+    doFirst {
+        if (!releaseNotesFile.exists() || releaseNotesFile.text.trim().isEmpty()) {
+            throw new GradleException("Release notes file is missing or empty: ${releaseNotesFile.absolutePath}")
+        }
+        if (!mrId && !cfId) {
+            throw new GradleException("No platform configured. Set 'modrinth_id' and/or 'curseforge_id' in gradle.properties.")
+        }
+        if (mrId && !mrToken.isPresent()) {
+            throw new GradleException("Cannot publish to Modrinth: 'MODRINTH_TOKEN' is not set.")
+        }
+        if (cfId && !cfToken.isPresent()) {
+            throw new GradleException("Cannot publish to CurseForge: 'CURSEFORGE_TOKEN' is not set.")
+        }
     }
 }
