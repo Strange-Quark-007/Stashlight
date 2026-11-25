@@ -35,6 +35,12 @@ public class ContainerRepository {
     // rapidly (e.g. every 3000 ticks) before a previous save has finished.
     private volatile boolean isSavePending = false;
 
+    private static final int CLEANUP_BATCH_SIZE = 64;
+    private String cleanupDimension = null;
+    private List<BlockPos> cleanupQueue = Collections.emptyList();
+    private int cleanupIndex = 0;
+    private int cleanupCooldownTicks = 0;
+
     public ContainerRepository(Serializer serializer) {
         this.serializer = serializer;
         this.CONTAINER_ENTRIES_MAP = serializer.read();
@@ -42,46 +48,69 @@ public class ContainerRepository {
     }
 
     public void runCleanup(ClientLevel world) {
-    String dimension = Util.getDimensionName(world);
-    Map<BlockPos, ContainerSnapshot> dataMap = CONTAINER_ENTRIES_MAP.get(dimension);
+        String dimension = Util.getDimensionName(world);
 
-    if (dataMap == null || dataMap.isEmpty()) {
-        return;
-    }
+        if (!dimension.equals(cleanupDimension)) {
+            cleanupDimension = dimension;
+            cleanupQueue = Collections.emptyList();
+            cleanupIndex = 0;
+            cleanupCooldownTicks = 0;
+        }
 
-    // Step 1: Collect positions to check (main thread snapshot)
-    List<BlockPos> toCheck;
-    synchronized (CONTAINER_ENTRIES_MAP) {
-        toCheck = new ArrayList<>(dataMap.keySet());
-    }
+        if (cleanupIndex >= cleanupQueue.size()) {
+            if (cleanupCooldownTicks > 0) {
+                cleanupCooldownTicks--;
+                return;
+            }
 
-    // Step 2: World access on main thread — not thread-safe to do this in executor
-    List<BlockPos> toRemove = new ArrayList<>();
-
-    for (BlockPos pos : toCheck) {
-        if (world.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
-            if (!Util.isValidSearchableContainer(world.getBlockState(pos))) {
-                toRemove.add(pos);
+            synchronized (CONTAINER_ENTRIES_MAP) {
+                Map<BlockPos, ContainerSnapshot> dataMap = CONTAINER_ENTRIES_MAP.get(dimension);
+                if (dataMap == null || dataMap.isEmpty()) {
+                    return;
+                }
+                cleanupQueue = new ArrayList<>(dataMap.keySet());
+                cleanupIndex = 0;
             }
         }
-    }
 
-    if (toRemove.isEmpty()) {
-        return;
-    }
+        // Check a bounded batch per tick on the main thread to avoid frame spikes.
+        int end = Math.min(cleanupIndex + CLEANUP_BATCH_SIZE, cleanupQueue.size());
+        List<BlockPos> toRemove = new ArrayList<>();
 
-    // Step 3: Only map mutation + dirty flag + save goes to executor
-    cleanupExecutor.submit(() -> {
-        synchronized (CONTAINER_ENTRIES_MAP) {
-            for (BlockPos pos : toRemove) {
-                dataMap.remove(pos);
-                removeFromIndex(dimension, pos);
+        for (int i = cleanupIndex; i < end; i++) {
+            BlockPos pos = cleanupQueue.get(i);
+            if (world.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+                if (!Util.isValidSearchableContainer(world.getBlockState(pos))) {
+                    toRemove.add(pos);
+                }
             }
-            this.isDirty = true;
         }
-        saveIfDirty();
-    });
-}
+        cleanupIndex = end;
+
+        if (cleanupIndex >= cleanupQueue.size()) {
+            cleanupQueue = Collections.emptyList();
+            cleanupCooldownTicks = 100;
+        }
+
+        if (toRemove.isEmpty()) {
+            return;
+        }
+
+        // Only map mutation + dirty flag + save goes to executor
+        cleanupExecutor.submit(() -> {
+            synchronized (CONTAINER_ENTRIES_MAP) {
+                Map<BlockPos, ContainerSnapshot> dataMap = CONTAINER_ENTRIES_MAP.get(dimension);
+                if (dataMap != null) {
+                    for (BlockPos pos : toRemove) {
+                        dataMap.remove(pos);
+                    }
+                    removeAllFromIndex(dimension, toRemove);
+                    this.isDirty = true;
+                }
+            }
+            saveIfDirty();
+        });
+    }
 
     public void update(String dimension, BlockPos pos, String blockName, int capacity, List<ItemStack> stacks) {
         List<ItemStack> copiedStacks = new ArrayList<>();
@@ -113,22 +142,32 @@ public class ContainerRepository {
     }
 
     private void removeFromIndex(String dimension, BlockPos pos) {
+        removeAllFromIndex(dimension, Collections.singletonList(pos));
+    }
+
+    private void removeAllFromIndex(String dimension, Collection<BlockPos> positions) {
         Map<BlockPos, List<IndexedItem>> dimLookup = INDEX_LOOKUP.get(dimension);
-        if (dimLookup != null) {
+        if (dimLookup == null || positions.isEmpty()) {
+            return;
+        }
+
+        Set<IndexedItem> itemsToRemove = new HashSet<>();
+        for (BlockPos pos : positions) {
             List<IndexedItem> oldItems = dimLookup.remove(pos);
-
-            if (oldItems != null && !oldItems.isEmpty()) {
-                Set<IndexedItem> itemsToRemove = new HashSet<>(oldItems);
-
-                // Build new list in O(N) time
-                List<IndexedItem> newIndex = new ArrayList<>(SEARCH_INDEX.size());
-                for (IndexedItem item : SEARCH_INDEX) {
-                    if (!itemsToRemove.contains(item)) {
-                        newIndex.add(item);
-                    }
-                }
-                SEARCH_INDEX = newIndex;
+            if (oldItems != null) {
+                itemsToRemove.addAll(oldItems);
             }
+        }
+
+        if (!itemsToRemove.isEmpty()) {
+            // Build new list in O(N) time
+            List<IndexedItem> newIndex = new ArrayList<>(SEARCH_INDEX.size());
+            for (IndexedItem item : SEARCH_INDEX) {
+                if (!itemsToRemove.contains(item)) {
+                    newIndex.add(item);
+                }
+            }
+            SEARCH_INDEX = newIndex;
         }
     }
 
@@ -162,20 +201,32 @@ public class ContainerRepository {
     }
 
     public void saveIfDirty() {
-        if (!this.isDirty || this.isSavePending) return;
+        if (!this.isDirty || this.isSavePending || !serializer.isLoadSucceeded()) return;
         this.isSavePending = true;
-        // Snapshot the data under the lock, then write to disk off the main thread.
-        // NbtIo.writeCompressed() is blocking I/O — never run it on the render thread.
         cleanupExecutor.submit(() -> {
             try {
-                synchronized (CONTAINER_ENTRIES_MAP) {
-                    serializer.write(CONTAINER_ENTRIES_MAP);
-                    this.isDirty = false;
+                Map<String, Map<BlockPos, ContainerSnapshot>> snapshot = snapshotIfDirty();
+                if (snapshot != null) {
+                    serializer.write(snapshot);
                 }
             } finally {
                 this.isSavePending = false;
             }
         });
+    }
+
+    private Map<String, Map<BlockPos, ContainerSnapshot>> snapshotIfDirty() {
+        synchronized (CONTAINER_ENTRIES_MAP) {
+            if (!this.isDirty) {
+                return null;
+            }
+            Map<String, Map<BlockPos, ContainerSnapshot>> snapshot = new HashMap<>(CONTAINER_ENTRIES_MAP.size());
+            for (var entry : CONTAINER_ENTRIES_MAP.entrySet()) {
+                snapshot.put(entry.getKey(), new HashMap<>(entry.getValue()));
+            }
+            this.isDirty = false;
+            return snapshot;
+        }
     }
 
     public void rebuildIndex() {
@@ -207,9 +258,6 @@ public class ContainerRepository {
     }
 
     public void shutdown() {
-        // Flush any pending dirty state, then wait for the executor to finish
-        // so the final save completes before the game disconnects.
-        saveIfDirty();
         cleanupExecutor.shutdown();
         try {
             if (!cleanupExecutor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
@@ -217,6 +265,13 @@ public class ContainerRepository {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+
+        if (serializer.isLoadSucceeded()) {
+            Map<String, Map<BlockPos, ContainerSnapshot>> snapshot = snapshotIfDirty();
+            if (snapshot != null) {
+                serializer.write(snapshot);
+            }
         }
     }
 }

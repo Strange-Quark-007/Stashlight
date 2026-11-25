@@ -83,10 +83,7 @@ public class Stashlight implements ClientModInitializer {
             if (client.level == null || repository == null) return;
 
             tickCounter++;
-
-            if (tickCounter % 100 == 0) {
-                repository.runCleanup(client.level);
-            }
+            repository.runCleanup(client.level);
 
             if (tickCounter % 3000 == 0) {
                 repository.saveIfDirty();
