@@ -8,8 +8,11 @@ import net.minecraft.nbt.*;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.world.item.ItemStack;
 
+import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -17,7 +20,8 @@ import java.util.Map;
 
 public class Serializer {
     private final Path file;
-    private final HolderLookup.Provider lookup;
+    private final RegistryOps<Tag> registryOps;
+    private volatile boolean loadSucceeded = true;
 
     private static final String NBT_CONTAINER_NAME_KEY = "name";
     private static final String NBT_CONTAINER_CAPACITY_KEY = "capacity";
@@ -26,12 +30,19 @@ public class Serializer {
 
     public Serializer(Path file, HolderLookup.Provider lookup) {
         this.file = file;
-        this.lookup = lookup;
+        this.registryOps = RegistryOps.create(NbtOps.INSTANCE, lookup);
+    }
+
+    public boolean isLoadSucceeded() {
+        return loadSucceeded;
     }
 
     public Map<String, Map<BlockPos, ContainerSnapshot>> read() {
         Map<String, Map<BlockPos, ContainerSnapshot>> database = new HashMap<>();
-        if (file == null || !Files.exists(file)) return database;
+        if (file == null || !Files.exists(file)) {
+            loadSucceeded = true;
+            return database;
+        }
 
         try {
             CompoundTag root = NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap());
@@ -46,14 +57,21 @@ public class Serializer {
                     database.put(dim, posMap);
                 });
             }
+            loadSucceeded = true;
         } catch (Exception e) {
+            loadSucceeded = false;
             Stashlight.LOGGER.error("Load failed", e);
+            return new HashMap<>();
         }
         return database;
     }
 
     public void write(Map<String, Map<BlockPos, ContainerSnapshot>> database) {
         if (file == null) return;
+        if (!loadSucceeded) {
+            Stashlight.LOGGER.warn("Skipping save to preserve existing cache file after failed load");
+            return;
+        }
 
         CompoundTag root = new CompoundTag();
         database.forEach((dim, posMap) -> {
@@ -62,10 +80,25 @@ public class Serializer {
             root.put(dim, dimTag);
         });
 
+        Path tempFile = file.resolveSibling(file.getFileName() + ".tmp");
         try {
-            NbtIo.writeCompressed(root, file);
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            NbtIo.writeCompressed(root, tempFile);
+            try {
+                Files.move(tempFile, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tempFile, file, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (Exception e) {
             Stashlight.LOGGER.error("Save failed", e);
+        } finally {
+            try {
+                Files.deleteIfExists(tempFile);
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -101,8 +134,7 @@ public class Serializer {
 
     private Tag serializeStack(ItemStack stack) {
         try {
-            var ops = RegistryOps.create(NbtOps.INSTANCE, lookup);
-            return ItemStack.CODEC.encodeStart(ops, stack)
+            return ItemStack.CODEC.encodeStart(registryOps, stack)
                     .resultOrPartial(error -> Stashlight.LOGGER.warn("Failed to serialize item: {}", error))
                     .orElse(new CompoundTag());
         } catch (Exception e) {
@@ -113,8 +145,7 @@ public class Serializer {
 
     private ItemStack deserializeStack(CompoundTag nbt) {
         try {
-            var ops = RegistryOps.create(NbtOps.INSTANCE, lookup);
-            return ItemStack.CODEC.parse(ops, nbt)
+            return ItemStack.CODEC.parse(registryOps, nbt)
                     .resultOrPartial(error -> Stashlight.LOGGER.warn("Failed to deserialize item: {}", error))
                     .orElse(ItemStack.EMPTY);
         } catch (Exception e) {
